@@ -1,0 +1,59 @@
+#!/usr/bin/env python3
+import sys
+import requests
+import re
+from urllib.parse import urljoin, urlparse
+import time
+
+if len(sys.argv) != 2:
+    print("Usage: python commentScan.py <URL>")
+    sys.exit(1)
+
+start_url = sys.argv[1]
+base_domain = urlparse(start_url).netloc
+
+to_visit = [start_url]
+visited = set()
+keywords = [ 'username', 'user', 'usr', 'root', 'admin', 'adm', 'administrator', 'password', 'passwd',
+    'pwd', 'secret', 'token', 'apikey', 'api_key', 'auth', 'authorization', 'jwt',
+    'access_token', 'refresh_token', 'bearer', 'key', 'client_secret', 'client_id',
+    'login', 'credentials', 'creds', 'aws_access_key_id', 'aws_secret_access_key',
+    'aws_session_token', 's3_bucket', 'google_api_key', 'gcp_key', 'firebase_secret',
+    'azure_key', 'azure_password', 'digitalocean_token', 'cloudflare_key', 'cloudinary_api_key',
+    'stripe_key', 'paypal_client_id', 'mailgun_key', 'twilio_sid', 'twilio_token',
+    'sendgrid_api_key', 'github_token', 'slack_token', 'discord_token', 'bot_token',
+    '.env', '.env.local', 'config.json', 'settings.py', 'config.php', 'secrets.yml',
+    'credentials.json', 'firebase-config', 'database_url', 'db_user', 'db_pass',
+    'mysql_pass', 'postgres_password', 'mongodb_uri', 'connection_string', 'admin_panel',
+    'panel_url', 'base_url', 'callback_url', 'webhook_url', 'TODO', 'FIXME', 'DEBUG',
+    'HACK', 'NOTE', 'temporary', 'workaround', 'not secure', 'unsafe', 'bypass',
+    'disable_auth', 'allow_all', 'FOR']
+while to_visit:
+    url = to_visit.pop(0)
+    if url in visited:
+        continue
+    try:
+        print("Visiting:", url)
+        r = requests.get(url, timeout=5)
+        html = r.text
+
+        comments = re.findall(r'<!--(.*?)-->', html, re.DOTALL)
+        for comment in comments:
+            for key in keywords:
+                if key.lower() in comment.lower():
+                    print("  Found keyword", key, "in comment:", comment.strip())
+
+        visited.add(url)
+
+        links = re.findall(r'href=["\'](.*?)["\']', html, re.IGNORECASE)
+        for link in links:
+            abs_link = urljoin(url, link)
+            if urlparse(abs_link).netloc == base_domain and abs_link not in visited and abs_link not in to_visit:
+                to_visit.append(abs_link)
+
+        time.sleep(0.5)
+
+    except Exception as e:
+        print("Error:", e)
+        visited.add(url)
+
